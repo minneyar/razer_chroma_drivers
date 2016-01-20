@@ -59,31 +59,49 @@ unbind_keyboard() {
 bind_all_chromas() {
 	exit_number=1
 
-	for device in /sys/bus/hid/devices/*:1532:020[39]*
+	for device in /sys/bus/hid/devices/*:1532:*
 	do
-		device_id=$(basename "${device}")
-
-		usb_interface_num=$(udevadm info "/sys/bus/hid/devices/${device_id}" | grep "ID_USB_INTERFACE_NUM" | sed -n "s/.*_NUM=\([0-9]\+\)/\1/p")
-		# When passed to a VM the interface number isnt in the udevadm response :/
-		phyiscal_device=$(udevadm info "/sys/bus/hid/devices/${device_id}" | grep "HID_PHYS" | sed -n "s/.*HID_PHYS.*\/\(input[0-9]\+\)/\1/p")
-
-		# If its interface 2 then thats the device we want
-		if [ "${usb_interface_num}" = "02" ] || [ "${phyiscal_device}" = "input2" ]; then
-			bind_keyboard "${device_id}"
-			if [ $? -eq 0 ]; then
-				exit_number=0
-			fi
-		fi
+        echo "Checking ${device}"
+        udevadm_info=$(udevadm info "${device}")
+        is_kbd=$(echo ${udevadm_info}|grep "is_razer_kbd=yes")
+        if [ -n "${is_kbd}" ] && [ "${is_kbd}" != "" ]
+        then
+    		device_id=$(basename "${device}")
+    
+            echo "Device ID: ${device_id}"
+    		usb_interface_num=$(echo ${udevadm_info} | grep "ID_USB_INTERFACE_NUM" | sed -n "s/.*_NUM=\([0-9]\+\).*$/\1/p")
+    		# When passed to a VM the interface number isnt in the udevadm response :/
+    		physical_device=$(echo ${udevadm_info} | grep "HID_PHYS" | sed -n "s/.*HID_PHYS.*\/\(input[0-9]\+\).*$/\1/p")
+    
+    		# If its interface 2 then thats the device we want
+    		if [ "${usb_interface_num}" = "02" ] || [ "${physical_device}" = "input2" ]; then
+    			bind_keyboard "${device_id}"
+    			if [ $? -eq 0 ]; then
+    				exit_number=0
+    			fi
+            else
+                echo "Num: ${usb_interface_num}"
+                echo "Input: ${physical_device}"
+    		fi
+        fi
 	done
 
 	return ${exit_number}
 }
 
 unbind_all_chromas() {
-	for device in /sys/bus/hid/drivers/razerkbd/*:1532:020[39]*
+	for device in /sys/bus/hid/drivers/razerkbd/*:1532:*
 	do
-		device_id=$(basename "${device}")
-
-		unbind_keyboard "${device_id}"
+        if [ -d ${device} ]
+        then
+            udevadm_info=$(udevadm info "${device}")
+            is_kbd=$(echo ${udevadm_info}|grep "is_razer_kbd=yes")
+            if [ -n "${is_kbd}" ] && [ "${is_kbd}" != "" ]
+            then
+        		device_id=$(basename "${device}")
+        
+        		unbind_keyboard "${device_id}"
+            fi
+        fi
 	done
 }
